@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import './LogHcpInteraction.css'
-import { postInteraction } from '../api'
+import { postInteraction, postAssistant } from '../api'
 
 export default function LogHcpInteraction() {
   const [form, setForm] = useState({
@@ -16,6 +16,9 @@ export default function LogHcpInteraction() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState(null)
+  const [assistantInput, setAssistantInput] = useState('')
+  const [assistantReply, setAssistantReply] = useState('')
+  const [assistantLoading, setAssistantLoading] = useState(false)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -44,6 +47,39 @@ export default function LogHcpInteraction() {
       setMessage('Error: ' + err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const summarizeForm = (f) => {
+    const parts = []
+    if (f.hcpName) parts.push(`${f.hcpName}`)
+    if (f.interactionType) parts.push(`had a ${f.interactionType.toLowerCase()}`)
+    if (f.topics) parts.push(`discussed: ${f.topics}`)
+    if (f.outcomes) parts.push(`outcomes: ${f.outcomes}`)
+    if (f.followUps) parts.push(`follow-ups: ${f.followUps}`)
+    if (parts.length === 0) return 'No form details to summarize.'
+    return parts.join('; ') + '.'
+  }
+
+  const handleAssistantSend = async (mode) => {
+    const prompt = assistantInput?.trim() || (mode === 'summarize' ? 'Summarize the form and suggest updates.' : 'Generate an assistant response and update the form fields from the current interaction details.')
+    setAssistantLoading(true)
+    setAssistantReply('Processing...')
+    setMessage(null)
+
+    try {
+      const result = await postAssistant(prompt, form)
+      const reply = result?.reply || result?.message || 'Assistant responded.'
+      const updatedForm = result?.form
+      if (updatedForm && typeof updatedForm === 'object') {
+        setForm((current) => ({ ...current, ...updatedForm }))
+      }
+      setAssistantReply(reply)
+      setAssistantInput('')
+    } catch (err) {
+      setAssistantReply('Assistant error: ' + err.message)
+    } finally {
+      setAssistantLoading(false)
     }
   }
 
@@ -132,12 +168,11 @@ export default function LogHcpInteraction() {
 
       <aside className="assistant">
         <h3>AI Assistant</h3>
-        <div className="assistant-box">
-          Log interaction details here (e.g., "Met Dr. Smith, discussed Product X efficacy, positive sentiment, shared brochure") or ask for help.
-        </div>
+        <div className="assistant-box">{assistantReply || 'Log interaction details here (e.g., "Met Dr. Smith, discussed Product X efficacy, positive sentiment, shared brochure") or ask for help.'}</div>
         <div className="assistant-input">
-          <input placeholder="Describe interaction..." />
-          <button>Log</button>
+          <input value={assistantInput} onChange={(e) => setAssistantInput(e.target.value)} placeholder="Describe interaction..." />
+          <button type="button" onClick={() => handleAssistantSend()} disabled={assistantLoading}>{assistantLoading ? 'Sending...' : 'Send'}</button>
+          <button type="button" onClick={() => handleAssistantSend('summarize')} disabled={assistantLoading} style={{marginLeft:8}}>{assistantLoading ? 'Waiting...' : 'Summarize Form'}</button>
         </div>
       </aside>
     </div>

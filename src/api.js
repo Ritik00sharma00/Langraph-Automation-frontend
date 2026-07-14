@@ -14,3 +14,19 @@ export async function postInteraction(data) {
 
   return res.json()
 }
+
+export async function postAssistant(prompt, form = {}) {
+  const res = await fetch(`${BASE_URL}/assistant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, form }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || res.statusText)
+  }
+
+  return res.json()
+}
+
